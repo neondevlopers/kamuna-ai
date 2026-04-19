@@ -11,7 +11,7 @@ from datetime import datetime
 from ai_core.memory import knowledge_base, conversation_memory
 from ai_core.formatter import formatter
 from tools.network_tools import NetworkTools
-from tools.security_checks import SecurityChecks
+from tools.security_checks import SecurityChecker as SecurityChecks
 from tools.log_analyzer import LogAnalyzer
 from logger import logger
 
