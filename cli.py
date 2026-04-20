@@ -5,7 +5,6 @@ KAMUNA AI - Command Line Interface
 
 import sys
 import os
-import readline  # For better input handling
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
