@@ -56,10 +56,15 @@ Knowledge: Enables rapid information retrieval via vector search and semantic un
 The system offers flexibility in choosing an AI model, allowing users to balance performance with hardware constraints (RAM and storage):
 
 Model,Size,RAM Required,Performance,Quality
+
 TinyLlama 1.1B,1.1B,2GB,Very Fast,⭐⭐
+
 DeepSeek Coder 1.3B,1.3B,2-3GB,Fast,⭐⭐⭐
+
 DeepSeek Coder 6.7B,6.7B,6-8GB,Medium,⭐⭐⭐⭐
+
 CodeLlama 7B,7B,8GB,Medium,⭐⭐⭐⭐
+
 Qwen2.5-Coder 7B,7B,8GB,Medium,⭐⭐⭐⭐⭐
 
 ## Operational Metrics & Benchmarks
