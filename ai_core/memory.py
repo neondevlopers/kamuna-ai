@@ -5,6 +5,7 @@ Uses ChromaDB for vector search and SQLite for conversation memory
 """
 
 import os
+import sys
 import sqlite3
 import uuid
 from typing import List, Dict, Any, Optional, Tuple
@@ -13,7 +14,17 @@ from datetime import datetime
 import chromadb
 from chromadb.utils import embedding_functions
 
-from logger import logger
+# Fix import for Colab and local environments
+try:
+    from backend.logger import logger
+except ImportError:
+    try:
+        from logger import logger
+    except ImportError:
+        import logging
+        logging.basicConfig(level=logging.INFO)
+        logger = logging.getLogger(__name__)
+        logger.warning("Using fallback logging configuration")
 
 
 class KnowledgeBase:
@@ -302,7 +313,7 @@ class KnowledgeBase:
             return {
                 'total_items': self.collection.count(),
                 'unique_topics': len(topics),
-                'topics': topics[:10],  # Limit to 10
+                'topics': topics[:10],
                 'type_distribution': type_counts,
                 'persist_directory': self.persist_directory
             }
@@ -319,12 +330,10 @@ class KnowledgeBase:
             True if successful
         """
         try:
-            # Delete all documents
             all_ids = self.collection.get()['ids']
             if all_ids:
                 self.collection.delete(ids=all_ids)
             
-            # Reinitialize base knowledge
             self._init_base_knowledge()
             
             logger.warning("Knowledge base cleared and reinitialized")
@@ -363,7 +372,6 @@ class ConversationMemory:
         """Create necessary tables if they don't exist"""
         cursor = self.conn.cursor()
         
-        # Conversations table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS conversations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -375,13 +383,11 @@ class ConversationMemory:
             )
         ''')
         
-        # Create index for faster queries
         cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_session_timestamp 
             ON conversations(session_id, timestamp DESC)
         ''')
         
-        # Sessions table for metadata
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS sessions (
                 session_id TEXT PRIMARY KEY,
@@ -394,25 +400,15 @@ class ConversationMemory:
         self.conn.commit()
     
     def add_message(self, session_id: str, role: str, content: str, metadata: Optional[Dict] = None):
-        """
-        Add a message to conversation history
-        
-        Args:
-            session_id: Session identifier
-            role: 'user' or 'assistant'
-            content: Message content
-            metadata: Optional metadata as dictionary
-        """
+        """Add a message to conversation history"""
         try:
             cursor = self.conn.cursor()
             
-            # Insert message
             cursor.execute(
                 "INSERT INTO conversations (session_id, role, content, metadata) VALUES (?, ?, ?, ?)",
                 (session_id, role, content, str(metadata) if metadata else None)
             )
             
-            # Update or create session
             cursor.execute('''
                 INSERT INTO sessions (session_id, message_count, last_active)
                 VALUES (?, 1, CURRENT_TIMESTAMP)
@@ -429,16 +425,7 @@ class ConversationMemory:
             self.conn.rollback()
     
     def get_history(self, session_id: str, limit: int = 10) -> List[Tuple[str, str]]:
-        """
-        Get conversation history for a session
-        
-        Args:
-            session_id: Session identifier
-            limit: Maximum number of messages to retrieve
-        
-        Returns:
-            List of (role, content) tuples in chronological order
-        """
+        """Get conversation history for a session"""
         try:
             cursor = self.conn.cursor()
             cursor.execute('''
@@ -457,16 +444,7 @@ class ConversationMemory:
             return []
     
     def get_history_with_timestamps(self, session_id: str, limit: int = 10) -> List[Tuple[str, str, str]]:
-        """
-        Get conversation history with timestamps
-        
-        Args:
-            session_id: Session identifier
-            limit: Maximum number of messages
-        
-        Returns:
-            List of (role, content, timestamp) tuples
-        """
+        """Get conversation history with timestamps"""
         try:
             cursor = self.conn.cursor()
             cursor.execute('''
@@ -484,15 +462,7 @@ class ConversationMemory:
             return []
     
     def get_last_message(self, session_id: str) -> Optional[Tuple[str, str]]:
-        """
-        Get the most recent message in a session
-        
-        Args:
-            session_id: Session identifier
-        
-        Returns:
-            Tuple of (role, content) or None
-        """
+        """Get the most recent message in a session"""
         try:
             cursor = self.conn.cursor()
             cursor.execute('''
@@ -511,12 +481,7 @@ class ConversationMemory:
             return None
     
     def clear_history(self, session_id: str):
-        """
-        Clear all conversation history for a session
-        
-        Args:
-            session_id: Session identifier
-        """
+        """Clear all conversation history for a session"""
         try:
             cursor = self.conn.cursor()
             cursor.execute("DELETE FROM conversations WHERE session_id = ?", (session_id,))
@@ -530,15 +495,7 @@ class ConversationMemory:
             self.conn.rollback()
     
     def get_session_info(self, session_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Get information about a session
-        
-        Args:
-            session_id: Session identifier
-        
-        Returns:
-            Dictionary with session information or None
-        """
+        """Get information about a session"""
         try:
             cursor = self.conn.cursor()
             cursor.execute('''
@@ -562,15 +519,7 @@ class ConversationMemory:
             return None
     
     def list_sessions(self, limit: int = 20) -> List[Dict[str, Any]]:
-        """
-        List all sessions with their information
-        
-        Args:
-            limit: Maximum number of sessions to return
-        
-        Returns:
-            List of session information dictionaries
-        """
+        """List all sessions with their information"""
         try:
             cursor = self.conn.cursor()
             cursor.execute('''
@@ -596,12 +545,7 @@ class ConversationMemory:
             return []
     
     def delete_old_sessions(self, days: int = 30):
-        """
-        Delete sessions older than specified days
-        
-        Args:
-            days: Age in days
-        """
+        """Delete sessions older than specified days"""
         try:
             cursor = self.conn.cursor()
             cursor.execute('''
