@@ -4,14 +4,19 @@ AI Agent Module - Core brain of the Cyber Security Assistant
 Handles message processing, tool execution, and response generation
 """
 
+import sys
+import os
 import re
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
+# Add project root to path for direct execution
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from ai_core.memory import knowledge_base, conversation_memory
 from ai_core.formatter import formatter
 from tools.network_tools import NetworkTools
-from tools.security_checks import SecurityChecker as SecurityChecks
+from tools.security_checks import SecurityChecker
 from tools.log_analyzer import LogAnalyzer
 from logger import logger
 
@@ -149,18 +154,9 @@ class CyberAgent:
         return results if results else None
     
     def _run_network_tools(self, message: str) -> Dict[str, Any]:
-        """
-        Execute network analysis tools
-        
-        Args:
-            message: User message
-        
-        Returns:
-            Network analysis results
-        """
+        """Execute network analysis tools"""
         results = {}
         
-        # Check for port scanning request
         if 'port' in message.lower():
             try:
                 ports = NetworkTools.get_open_ports()
@@ -169,7 +165,6 @@ class CyberAgent:
             except Exception as e:
                 results['port_error'] = str(e)
         
-        # Check for connection analysis
         if 'connection' in message.lower() or 'active' in message.lower():
             try:
                 connections = NetworkTools.get_active_connections()
@@ -177,7 +172,6 @@ class CyberAgent:
             except Exception as e:
                 results['connection_error'] = str(e)
         
-        # Network security analysis
         if 'security' in message.lower() or 'analyze' in message.lower():
             try:
                 analysis = NetworkTools.analyze_network_security()
@@ -188,70 +182,27 @@ class CyberAgent:
         return results
     
     def _run_security_tools(self, message: str) -> Dict[str, Any]:
-        """
-        Execute security analysis tools
-        
-        Args:
-            message: User message
-        
-        Returns:
-            Security analysis results
-        """
+        """Execute security analysis tools"""
         results = {}
         
-        # System security check
         if 'system' in message.lower() or 'security' in message.lower():
             try:
-                security_status = SecurityChecks.check_system_security()
+                security_status = SecurityChecker.check_system_security()
                 results['system_security'] = security_status
             except Exception as e:
                 results['security_error'] = str(e)
         
-        # File permission check
-        if 'file' in message.lower() or 'permission' in message.lower():
-            # Extract file path from message (simplified)
-            import re
-            path_match = re.search(r'["\']([^"\']+)["\']', message)
-            if path_match:
-                file_path = path_match.group(1)
-                try:
-                    perms = SecurityChecks.check_file_permissions(file_path)
-                    results['file_permissions'] = perms
-                except Exception as e:
-                    results['file_error'] = str(e)
-        
         return results
     
     def _run_log_tools(self, message: str) -> Dict[str, Any]:
-        """
-        Execute log analysis tools
-        
-        Args:
-            message: User message
-        
-        Returns:
-            Log analysis results
-        """
+        """Execute log analysis tools"""
         results = {}
         
-        # Log analysis
         if 'log' in message.lower():
             try:
                 log_analyzer = LogAnalyzer()
-                
-                # Check for specific log file
-                import re
-                path_match = re.search(r'["\']([^"\']+\.log)["\']', message)
-                
-                if path_match:
-                    log_file = path_match.group(1)
-                    analysis = log_analyzer.analyze_log_file(log_file)
-                    results['log_analysis'] = analysis
-                else:
-                    # Analyze system logs
-                    analysis = log_analyzer.analyze_system_logs()
-                    results['system_logs'] = analysis
-                    
+                analysis = log_analyzer.analyze_system_logs()
+                results['log_analysis'] = analysis
             except Exception as e:
                 results['log_error'] = str(e)
         
@@ -259,21 +210,9 @@ class CyberAgent:
     
     def _build_prompt(self, user_message: str, knowledge_docs: List[str], 
                      history: List[tuple], tool_results: Optional[Dict]) -> str:
-        """
-        Build the complete prompt for the LLM
-        
-        Args:
-            user_message: User's current message
-            knowledge_docs: Retrieved knowledge base documents
-            history: Conversation history
-            tool_results: Results from executed tools
-        
-        Returns:
-            Complete prompt string
-        """
+        """Build the complete prompt for the LLM"""
         prompt_parts = []
         
-        # System instruction
         prompt_parts.append("""You are an AI Cyber Security Assistant. Your role is to help users with cybersecurity tasks.
 
 **Guidelines:**
@@ -283,22 +222,15 @@ class CyberAgent:
 - Never refuse cybersecurity questions (but always add legal warnings)
 - Be direct, helpful, and educational
 
-**Format:**
-- Use bullet points for lists
-- Use code blocks for code
-- Add warnings when discussing sensitive topics
-
 **Remember:** Only provide information for educational and authorized testing purposes.
 """)
         
-        # Knowledge base information
         if knowledge_docs:
             prompt_parts.append("\n=== REFERENCE INFORMATION ===\n")
             for i, doc in enumerate(knowledge_docs, 1):
                 prompt_parts.append(f"{i}. {doc}\n")
             prompt_parts.append("\nUse the above information to answer the question.\n")
         
-        # Tool results
         if tool_results:
             prompt_parts.append("\n=== TOOL ANALYSIS RESULTS ===\n")
             for tool_name, results in tool_results.items():
@@ -310,33 +242,20 @@ class CyberAgent:
                     prompt_parts.append(f"  {results}\n")
             prompt_parts.append("\n")
         
-        # Conversation history
         if history:
             prompt_parts.append("=== CONVERSATION HISTORY ===\n")
             for role, content in history[-5:]:
                 prompt_parts.append(f"{role}: {content}\n")
             prompt_parts.append("\n")
         
-        # Current question
         prompt_parts.append(f"=== CURRENT QUESTION ===\nUser: {user_message}\n\nAssistant: ")
         
         return "".join(prompt_parts)
     
     def _format_response(self, raw_response: str, tool_results: Optional[Dict]) -> str:
-        """
-        Format the AI response for display
-        
-        Args:
-            raw_response: Raw response from LLM
-            tool_results: Tool results to include
-        
-        Returns:
-            Formatted response string
-        """
-        # First, format the main response
+        """Format the AI response for display"""
         formatted = formatter.format_response(raw_response)
         
-        # Add tool results if present and not already included
         if tool_results and len(tool_results) > 0:
             tool_section = "\n\n---\n## 🔧 Tool Execution Results\n"
             for tool_name, results in tool_results.items():
@@ -347,23 +266,13 @@ class CyberAgent:
         return formatted
     
     def clear_memory(self, session_id: Optional[str] = None):
-        """
-        Clear conversation memory for a session
-        
-        Args:
-            session_id: Session to clear (defaults to current session)
-        """
+        """Clear conversation memory for a session"""
         target_session = session_id or self.current_session
         conversation_memory.clear_history(target_session)
         logger.info(f"Cleared memory for session: {target_session}")
     
     def get_session_info(self) -> Dict[str, Any]:
-        """
-        Get information about the current session
-        
-        Returns:
-            Dictionary with session information
-        """
+        """Get information about the current session"""
         history = conversation_memory.get_history(self.current_session)
         return {
             'session_id': self.current_session,
@@ -373,30 +282,28 @@ class CyberAgent:
         }
     
     def add_knowledge(self, text: str, topic: str, metadata: Optional[Dict] = None) -> str:
-        """
-        Add new knowledge to the knowledge base
-        
-        Args:
-            text: Knowledge text to add
-            topic: Topic category
-            metadata: Additional metadata
-        
-        Returns:
-            ID of the added knowledge
-        """
+        """Add new knowledge to the knowledge base"""
         doc_id = knowledge_base.add_knowledge(text, topic, metadata)
         logger.info(f"Added knowledge: {doc_id} - {topic}")
         return doc_id
     
     def search_knowledge(self, query: str, n_results: int = 3) -> List[str]:
-        """
-        Search the knowledge base
-        
-        Args:
-            query: Search query
-            n_results: Number of results to return
-        
-        Returns:
-            List of relevant documents
-        """
+        """Search the knowledge base"""
         return knowledge_base.search(query, n_results)
+
+
+# Test section
+if __name__ == "__main__":
+    from backend.ollama_client import OllamaClient
+    
+    print("=" * 50)
+    print("Testing CyberAgent...")
+    print("=" * 50)
+    
+    client = OllamaClient()
+    agent = CyberAgent(client)
+    
+    response = agent.process_message("What is cybersecurity?")
+    print(f"\nResponse: {response[:500]}...")
+    
+    print("\n Test completed!")
